@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual env / local env
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Runtime files from booth sessions
+backend/static/outputs/
+backend/static/inputs/*
+!backend/static/inputs/reference*.jpg
+!backend/static/inputs/reference*.jpeg
+!backend/static/inputs/reference*.png
+!backend/static/inputs/reference*.webp

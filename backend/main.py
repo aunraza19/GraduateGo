@@ -1,3 +1,4 @@
+import os
 import re
 from pathlib import Path
 
@@ -12,6 +13,11 @@ from utils.env_loader import load_env_file
 BASE_DIR = Path(__file__).resolve().parent
 load_env_file(BASE_DIR.parent / ".env", override=True)
 load_env_file(BASE_DIR / ".env", override=True)
+if not os.getenv("OPENAI_API_KEY", "").strip():
+    print(
+        "[config] OPENAI_API_KEY is missing after env load. "
+        f"Checked: {BASE_DIR.parent / '.env'} and {BASE_DIR / '.env'}"
+    )
 
 from services.email_delivery import (
     EmailConfigError,
@@ -19,7 +25,12 @@ from services.email_delivery import (
     EmailSendError,
     send_generated_image_email,
 )
-from services.openai_image import ImageAPIError, ImageEmptyResponseError, generate_image
+from services.openai_image import (
+    ImageAPIError,
+    ImageConfigError,
+    ImageEmptyResponseError,
+    generate_image,
+)
 from services.qr import QRError, generate_qr
 from services.storage import StorageError, save_input, save_output
 
@@ -118,6 +129,8 @@ async def generate(file: UploadFile = File(...)):
         qr_path = generate_qr(output_path)
     except ImageEmptyResponseError as exc:
         return _error(502, "Empty response from OpenAI", str(exc))
+    except ImageConfigError as exc:
+        return _error(500, "OpenAI configuration error", str(exc))
     except ImageAPIError as exc:
         return _error(502, "OpenAI API failure", str(exc))
     except StorageError as exc:

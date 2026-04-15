@@ -26,6 +26,10 @@ class ImageEmptyResponseError(ImageGenerationError):
     pass
 
 
+class ImageConfigError(ImageGenerationError):
+    pass
+
+
 def _mime_type_for(path: Path) -> str:
     guessed, _ = mimetypes.guess_type(path.name)
     return guessed or "image/jpeg"
@@ -103,7 +107,9 @@ def generate_image(image_path: str) -> bytes:
 
     api_key = os.getenv("OPENAI_API_KEY", "").strip()
     if not api_key:
-        raise ImageAPIError("OPENAI_API_KEY is not set.")
+        raise ImageConfigError(
+            "OPENAI_API_KEY is not set. Check .env file and restart the server process."
+        )
 
     model = os.getenv("OPENAI_IMAGE_MODEL", DEFAULT_MODEL).strip() or DEFAULT_MODEL
     prompt = get_graduation_prompt()
