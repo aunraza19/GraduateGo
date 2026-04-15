@@ -10,7 +10,7 @@ from utils.env_loader import load_env_file
 BASE_DIR = Path(__file__).resolve().parent
 load_env_file(BASE_DIR.parent / ".env", override=True)
 
-from services.gemini import GeminiAPIError, GeminiEmptyResponseError, generate_image
+from services.openai_image import ImageAPIError, ImageEmptyResponseError, generate_image
 from services.qr import QRError, generate_qr
 from services.storage import StorageError, save_input, save_output
 
@@ -80,10 +80,10 @@ async def generate(file: UploadFile = File(...)):
         generated_bytes = generate_image(input_path)
         output_path = save_output(generated_bytes)
         qr_path = generate_qr(output_path)
-    except GeminiEmptyResponseError as exc:
-        return _error(502, "Empty response from Gemini", str(exc))
-    except GeminiAPIError as exc:
-        return _error(502, "Gemini API failure", str(exc))
+    except ImageEmptyResponseError as exc:
+        return _error(502, "Empty response from OpenAI", str(exc))
+    except ImageAPIError as exc:
+        return _error(502, "OpenAI API failure", str(exc))
     except StorageError as exc:
         return _error(500, "File write error", str(exc))
     except QRError as exc:
