@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI Graduation Booth</title>
+  <style>
+    :root {
+      --bg: #f3f4f6;
+      --panel: #ffffff;
+      --text: #111827;
+      --muted: #4b5563;
+      --border: #d1d5db;
+      --accent: #0b6e4f;
+      --danger: #b91c1c;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(145deg, #fef3c7, var(--bg));
+      color: var(--text);
+    }
+
+    .wrap {
+      max-width: 860px;
+      margin: 28px auto;
+      padding: 0 14px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px;
+      box-shadow: 0 8px 22px rgba(17, 24, 39, 0.08);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 1.75rem;
+    }
+
+    .subtitle {
+      margin: 8px 0 14px;
+      color: var(--muted);
+    }
+
+    .camera-frame {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      background: #0f172a;
+      margin-bottom: 12px;
+    }
+
+    video,
+    .snapshot-preview {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      background: #0f172a;
+    }
+
+    .snapshot-preview {
+      display: none;
+    }
+
+    .countdown {
+      position: absolute;
+      inset: 0;
+      display: none;
+      place-items: center;
+      font-size: clamp(4rem, 14vw, 7rem);
+      font-weight: 800;
+      color: #ffffff;
+      background: rgba(15, 23, 42, 0.38);
+      text-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-weight: 600;
+      cursor: pointer;
+      color: #fff;
+      background: var(--accent);
+    }
+
+    button.secondary {
+      background: #334155;
+    }
+
+    button.warning {
+      background: var(--danger);
+    }
+
+    button[disabled] {
+      opacity: 0.65;
+      cursor: not-allowed;
+    }
+
+    .fallback {
+      margin: 0 0 8px;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .fallback input[type="file"] {
+      margin-top: 8px;
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+      background: #fff;
+    }
+
+    .status {
+      min-height: 22px;
+      margin: 10px 0 0;
+      color: var(--muted);
+    }
+
+    .results {
+      margin-top: 16px;
+      display: none;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+
+    .card {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      background: #fafafa;
+    }
+
+    .card h2 {
+      margin: 0 0 8px;
+      font-size: 1rem;
+    }
+
+    .card img {
+      width: 100%;
+      max-height: 420px;
+      object-fit: contain;
+      border-radius: 8px;
+      border: 1px solid #e5e7eb;
+      background: #fff;
+    }
+
+    .card a {
+      display: inline-block;
+      margin-top: 8px;
+      color: #0b6e4f;
+      text-decoration: none;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="panel">
+      <h1>AI Graduation Booth</h1>
+      <p class="subtitle">Stand in front of the camera, tap <strong>Click Photo</strong>, and wait for 3-2-1 capture.</p>
+
+      <div class="camera-frame">
+        <video id="camera" autoplay playsinline muted></video>
+        <img id="snapshot" class="snapshot-preview" alt="Captured photo preview" />
+        <div id="countdown" class="countdown"></div>
+      </div>
+
+      <div class="actions">
+        <button id="start-btn" class="secondary" type="button">Start Camera</button>
+        <button id="click-btn" type="button" disabled>Click Photo</button>
+        <button id="retake-btn" class="warning" type="button" disabled>Retake</button>
+      </div>
+
+      <label class="fallback">
+        Fallback upload (if camera permission is blocked):
+        <input id="fallback-file" type="file" accept="image/*" />
+      </label>
+
+      <div id="status" class="status"></div>
+
+      <div id="results" class="results">
+        <article class="card">
+          <h2>Generated Portrait</h2>
+          <img id="result-image" alt="Generated graduation portrait" />
+          <a id="image-link" target="_blank" rel="noreferrer">Open Image</a>
+        </article>
+        <article class="card">
+          <h2>QR Code</h2>
+          <img id="result-qr" alt="QR code for generated image" />
+          <a id="qr-link" target="_blank" rel="noreferrer">Open QR</a>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const cameraEl = document.getElementById("camera");
+    const snapshotEl = document.getElementById("snapshot");
+    const countdownEl = document.getElementById("countdown");
+    const startBtn = document.getElementById("start-btn");
+    const clickBtn = document.getElementById("click-btn");
+    const retakeBtn = document.getElementById("retake-btn");
+    const fallbackFileEl = document.getElementById("fallback-file");
+    const statusEl = document.getElementById("status");
+    const resultsEl = document.getElementById("results");
+    const resultImageEl = document.getElementById("result-image");
+    const resultQrEl = document.getElementById("result-qr");
+    const imageLinkEl = document.getElementById("image-link");
+    const qrLinkEl = document.getElementById("qr-link");
+
+    let cameraStream = null;
+    let capturedBlob = null;
+
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+    function setStatus(text) {
+      statusEl.textContent = text;
+    }
+
+    function setBusyState(isBusy) {
+      startBtn.disabled = isBusy;
+      clickBtn.disabled = isBusy || !cameraStream;
+      fallbackFileEl.disabled = isBusy;
+      retakeBtn.disabled = isBusy || !capturedBlob;
+    }
+
+    async function startCamera() {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error("Camera is not supported on this browser.");
+      }
+
+      if (cameraStream) {
+        return;
+      }
+
+      cameraStream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          facingMode: "user",
+          width: { ideal: 1280 },
+          height: { ideal: 960 }
+        }
+      });
+
+      cameraEl.srcObject = cameraStream;
+      await cameraEl.play();
+      clickBtn.disabled = false;
+      setStatus("Camera ready. Tap Click Photo.");
+    }
+
+    function showLiveCamera() {
+      snapshotEl.style.display = "none";
+      cameraEl.style.display = "block";
+    }
+
+    function showSnapshot(url) {
+      cameraEl.style.display = "none";
+      snapshotEl.src = url;
+      snapshotEl.style.display = "block";
+    }
+
+    async function runCountdown() {
+      countdownEl.style.display = "grid";
+      for (const value of ["3", "2", "1"]) {
+        countdownEl.textContent = value;
+        await wait(700);
+      }
+      countdownEl.style.display = "none";
+      countdownEl.textContent = "";
+    }
+
+    async function capturePhotoBlob() {
+      const width = cameraEl.videoWidth || 1280;
+      const height = cameraEl.videoHeight || 960;
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext("2d");
+      context.drawImage(cameraEl, 0, 0, width, height);
+
+      return await new Promise((resolve, reject) => {
+        canvas.toBlob((blob) => {
+          if (!blob) {
+            reject(new Error("Failed to capture image from camera."));
+            return;
+          }
+          resolve(blob);
+        }, "image/jpeg", 0.98);
+      });
+    }
+
+    async function submitImage(fileBlob, filename) {
+      const formData = new FormData();
+      formData.append("file", fileBlob, filename);
+
+      const response = await fetch("/generate", {
+        method: "POST",
+        body: formData
+      });
+
+      const payload = await response.json();
+      if (!response.ok) {
+        const detail = payload.detail ? ` (${payload.detail})` : "";
+        throw new Error((payload.error || "Request failed") + detail);
+      }
+
+      resultImageEl.src = payload.image_url;
+      resultQrEl.src = payload.qr_url;
+      imageLinkEl.href = payload.image_url;
+      qrLinkEl.href = payload.qr_url;
+      resultsEl.style.display = "grid";
+    }
+
+    startBtn.addEventListener("click", async () => {
+      try {
+        setBusyState(true);
+        await startCamera();
+      } catch (error) {
+        setStatus("Camera error: " + error.message);
+      } finally {
+        setBusyState(false);
+      }
+    });
+
+    clickBtn.addEventListener("click", async () => {
+      try {
+        setBusyState(true);
+        resultsEl.style.display = "none";
+        await startCamera();
+        setStatus("Hold still... capturing in 3, 2, 1.");
+        await runCountdown();
+
+        capturedBlob = await capturePhotoBlob();
+        const previewUrl = URL.createObjectURL(capturedBlob);
+        showSnapshot(previewUrl);
+        retakeBtn.disabled = false;
+
+        setStatus("Photo captured. Generating graduation portrait...");
+        await submitImage(capturedBlob, `capture_${Date.now()}.jpg`);
+        setStatus("Done. Open image or scan QR.");
+      } catch (error) {
+        setStatus("Error: " + error.message);
+      } finally {
+        setBusyState(false);
+      }
+    });
+
+    retakeBtn.addEventListener("click", () => {
+      capturedBlob = null;
+      showLiveCamera();
+      resultsEl.style.display = "none";
+      retakeBtn.disabled = true;
+      setStatus("Retake ready. Tap Click Photo.");
+    });
+
+    fallbackFileEl.addEventListener("change", async () => {
+      const file = fallbackFileEl.files[0];
+      if (!file) {
+        return;
+      }
+
+      try {
+        setBusyState(true);
+        resultsEl.style.display = "none";
+        setStatus("Uploading selected image...");
+        await submitImage(file, file.name || `upload_${Date.now()}.jpg`);
+        setStatus("Done. Open image or scan QR.");
+      } catch (error) {
+        setStatus("Error: " + error.message);
+      } finally {
+        setBusyState(false);
+      }
+    });
+
+    setStatus("Tap Start Camera to begin.");
+  </script>
+</body>
+</html>
