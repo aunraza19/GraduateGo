@@ -12,7 +12,9 @@ def load_env_file(env_path: Path, override: bool = False) -> None:
             continue
 
         key, value = line.split("=", 1)
-        key = key.strip()
+        key = key.strip().lstrip("\ufeff")
+        if key.startswith("export "):
+            key = key[len("export ") :].strip()
         value = value.strip()
         if not key:
             continue

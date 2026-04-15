@@ -131,6 +131,24 @@
       background: #fff;
     }
 
+    .delivery {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 10px 0 4px;
+      align-items: center;
+    }
+
+    .delivery input[type="email"] {
+      flex: 1 1 260px;
+      min-width: 220px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+      background: #fff;
+      color: var(--text);
+    }
+
     .status {
       min-height: 22px;
       margin: 10px 0 0;
@@ -197,6 +215,11 @@
         <input id="fallback-file" type="file" accept="image/*" />
       </label>
 
+      <div class="delivery">
+        <input id="email-input" type="email" placeholder="student@email.com" />
+        <button id="email-btn" class="secondary" type="button" disabled>Send To Email</button>
+      </div>
+
       <div id="status" class="status"></div>
 
       <div id="results" class="results">
@@ -222,6 +245,8 @@
     const clickBtn = document.getElementById("click-btn");
     const retakeBtn = document.getElementById("retake-btn");
     const fallbackFileEl = document.getElementById("fallback-file");
+    const emailInputEl = document.getElementById("email-input");
+    const emailBtn = document.getElementById("email-btn");
     const statusEl = document.getElementById("status");
     const resultsEl = document.getElementById("results");
     const resultImageEl = document.getElementById("result-image");
@@ -231,6 +256,7 @@
 
     let cameraStream = null;
     let capturedBlob = null;
+    let latestImageUrl = "";
 
     const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -238,11 +264,38 @@
       statusEl.textContent = text;
     }
 
+    function looksLikeEmail(value) {
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((value || "").trim());
+    }
+
+    async function deliverEmail(imageUrl) {
+      const email = (emailInputEl.value || "").trim();
+      if (!looksLikeEmail(email)) {
+        throw new Error("Enter a valid email address before sending.");
+      }
+
+      const response = await fetch("/deliver-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: email,
+          image_url: imageUrl
+        })
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        const detail = payload.detail ? ` (${payload.detail})` : "";
+        throw new Error((payload.error || "Email send failed") + detail);
+      }
+    }
+
     function setBusyState(isBusy) {
       startBtn.disabled = isBusy;
       clickBtn.disabled = isBusy || !cameraStream;
       fallbackFileEl.disabled = isBusy;
+      emailInputEl.disabled = isBusy;
       retakeBtn.disabled = isBusy || !capturedBlob;
+      emailBtn.disabled = isBusy || !latestImageUrl;
     }
 
     async function startCamera() {
@@ -329,7 +382,19 @@
       resultQrEl.src = payload.qr_url;
       imageLinkEl.href = payload.image_url;
       qrLinkEl.href = payload.qr_url;
+      latestImageUrl = payload.image_url;
       resultsEl.style.display = "grid";
+
+      const emailValue = (emailInputEl.value || "").trim();
+      if (emailValue) {
+        if (!looksLikeEmail(emailValue)) {
+          setStatus("Image generated. Enter a valid email and tap Send To Email.");
+          return;
+        }
+        setStatus("Image generated. Sending email...");
+        await deliverEmail(payload.image_url);
+        setStatus("Done. Image sent to email.");
+      }
     }
 
     startBtn.addEventListener("click", async () => {
@@ -347,6 +412,7 @@
       try {
         setBusyState(true);
         resultsEl.style.display = "none";
+        latestImageUrl = "";
         await startCamera();
         setStatus("Hold still... capturing in 3, 2, 1.");
         await runCountdown();
@@ -358,7 +424,9 @@
 
         setStatus("Photo captured. Generating graduation portrait...");
         await submitImage(capturedBlob, `capture_${Date.now()}.jpg`);
-        setStatus("Done. Open image or scan QR.");
+        if (!emailInputEl.value.trim()) {
+          setStatus("Done. Open image or enter email to send.");
+        }
       } catch (error) {
         setStatus("Error: " + error.message);
       } finally {
@@ -368,9 +436,11 @@
 
     retakeBtn.addEventListener("click", () => {
       capturedBlob = null;
+      latestImageUrl = "";
       showLiveCamera();
       resultsEl.style.display = "none";
       retakeBtn.disabled = true;
+      emailBtn.disabled = true;
       setStatus("Retake ready. Tap Click Photo.");
     });
 
@@ -383,14 +453,39 @@
       try {
         setBusyState(true);
         resultsEl.style.display = "none";
+        latestImageUrl = "";
         setStatus("Uploading selected image...");
         await submitImage(file, file.name || `upload_${Date.now()}.jpg`);
-        setStatus("Done. Open image or scan QR.");
+        if (!emailInputEl.value.trim()) {
+          setStatus("Done. Open image or enter email to send.");
+        }
       } catch (error) {
         setStatus("Error: " + error.message);
       } finally {
         setBusyState(false);
       }
+    });
+
+    emailBtn.addEventListener("click", async () => {
+      if (!latestImageUrl) {
+        setStatus("Generate an image first, then send email.");
+        return;
+      }
+
+      try {
+        setBusyState(true);
+        setStatus("Sending email...");
+        await deliverEmail(latestImageUrl);
+        setStatus("Done. Image sent to email.");
+      } catch (error) {
+        setStatus("Error: " + error.message);
+      } finally {
+        setBusyState(false);
+      }
+    });
+
+    emailInputEl.addEventListener("input", () => {
+      emailBtn.disabled = !latestImageUrl;
     });
 
     setStatus("Tap Start Camera to begin.");
